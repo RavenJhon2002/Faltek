@@ -1,0 +1,10 @@
+{% load static %}
+<div id="pageLoader" class="page-loader" aria-hidden="true">
+    <div class="page-loader-card" role="status" aria-live="polite" aria-label="Loading">
+        <img src="{% static 'images/wait_logo.png' %}" alt="Loading" class="page-loader-logo">
+        <p class="page-loader-text">Loading...</p>
+        <div class="page-loader-bar">
+            <span class="page-loader-fill"></span>
+        </div>
+    </div>
+</div>

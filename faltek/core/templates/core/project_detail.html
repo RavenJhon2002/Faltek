@@ -1,0 +1,531 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ project.name }}</title>
+    <link rel="stylesheet" href="{% static 'core/css/gantt.css' %}?v=20260223_29">
+    <link rel="stylesheet" href="{% static 'core/css/page-loader.css' %}?v=20260223_2">
+</head>
+<body
+    class="site-shell"
+    data-open-reports="{{ open_reports_modal|yesno:'1,0' }}"
+    data-open-equipment="{{ open_equipment_modal|yesno:'1,0' }}"
+    data-open-equipment-view="{{ equipment_open_view }}"
+>
+<header class="top-header">
+    <div class="top-header-inner">
+        <span class="top-brand">
+            <img src="{% static 'images/logo1.png' %}" alt="Faltek" class="top-brand-logo">
+        </span>
+        <span class="top-user">{{ request.user.username }}</span>
+    </div>
+</header>
+<header class="site-header">
+    <div>
+        <p class="eyebrow">Project Workspace</p>
+        <h1>{{ project.name }}</h1>
+    </div>
+    <div class="header-actions">
+        <a class="btn btn-primary" href="{% url 'upload_boq' project.id %}">Upload BOQ</a>
+        <a class="btn btn-ghost" href="{% url 'project_list' %}">Back to Projects</a>
+    </div>
+</header>
+
+<main class="page-grid single-column">
+<section class="panel nav-panel">
+    <nav class="workspace-nav" aria-label="Project options">
+        <a href="#" class="workspace-link">File</a>
+        <a href="#" id="homeTab" data-view="home" class="workspace-link is-active">Home</a>
+        <a href="#" id="manpowerTab" class="workspace-link">Manpower</a>
+        <a href="#" id="reportsTab" class="workspace-link">Reports</a>
+        <a href="#" id="equipmentTab" class="workspace-link">Equipment</a>
+        <a href="#" class="workspace-link">Help</a>
+    </nav>
+</section>
+
+<section class="panel" id="progress-overview">
+    <div class="panel-head">
+        <h2>Project Overview</h2>
+        <p>Progress is based on total Gantt duration and manpower coverage.</p>
+    </div>
+
+    <div id="homeView" class="view-section">
+        <div class="overview-grid">
+            <div class="project-meta">
+                <h3>{{ project.name|upper }}</h3>
+                <p><strong>Location:</strong> {{ project.location|default:"-" }}</p>
+                <p><strong>Start Date:</strong> {{ timeline_start|default:project.start_date|default:"-" }}</p>
+                <p><strong>Expected End Date:</strong> {{ timeline_end|default:project.end_date|default:"-" }}</p>
+                <p><strong>Total Required Workers:</strong> {{ total_required_workers }}</p>
+                <p><strong>Total Actual Workers:</strong> {{ total_actual_workers }}</p>
+            </div>
+
+            <div class="progress-wrap">
+                <div class="progress-item">
+                    <div class="progress-ring" style="--percent: {{ actual_progress }};">
+                        <span>{{ actual_progress }}%</span>
+                    </div>
+                    <p>Actual Progress</p>
+                </div>
+                <div class="progress-item">
+                    <div class="progress-ring" style="--percent: {{ expected_progress }};">
+                        <span>{{ expected_progress }}%</span>
+                    </div>
+                    <p>Expected Progress</p>
+                </div>
+            </div>
+        </div>
+
+        <p class="status-line">
+            <strong>Note:</strong>
+            {% if progress_status == "ON TIME" %}
+                <span class="status-on-time">ON TIME</span>
+            {% elif progress_status == "SLIGHTLY DELAYED" %}
+                <span class="status-slightly-delayed">SLIGHTLY DELAYED</span>
+            {% else %}
+                <span class="status-delayed">DELAYED</span>
+            {% endif %}
+        </p>
+
+        <div class="home-actions">
+            <button type="button" id="openManpowerBtn" class="btn btn-primary">Open Manpower Settings</button>
+        </div>
+    </div>
+
+</section>
+
+<section class="panel report-issues-panel is-hidden" id="reportIssuesSection">
+    <div class="panel-head">
+        <h2>Report / Issues Log</h2>
+        <p>Add daily issues with optional image attachment.</p>
+    </div>
+
+    <form method="post" enctype="multipart/form-data" class="issue-log-form">
+        {% csrf_token %}
+        <input type="hidden" name="save_issue_log" value="1">
+
+        <div class="issue-row">
+            <label for="{{ issue_log_form.report_date.id_for_label }}" class="issue-label">Date:</label>
+            {{ issue_log_form.report_date }}
+        </div>
+
+        <label for="{{ issue_log_form.short_description.id_for_label }}" class="issue-label">Short Description:</label>
+        {{ issue_log_form.short_description }}
+
+        <div class="issue-actions">
+            <label for="{{ issue_log_form.image.id_for_label }}" class="attach-btn">+ Attach Image</label>
+            {{ issue_log_form.image }}
+            <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+
+        {% if issue_log_form.errors %}
+        <div class="empty-state">
+            {% for field in issue_log_form %}
+                {% for error in field.errors %}
+                <p>{{ error }}</p>
+                {% endfor %}
+            {% endfor %}
+            {% for error in issue_log_form.non_field_errors %}
+            <p>{{ error }}</p>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </form>
+
+    {% if issue_logs %}
+    <div class="issue-log-list">
+        {% for log in issue_logs %}
+        <article class="issue-item">
+            <p class="issue-item-date">{{ log.report_date }}</p>
+            <p>{{ log.short_description }}</p>
+            {% if log.image %}
+            <a href="{{ log.image.url }}" target="_blank" rel="noopener">
+                <img src="{{ log.image.url }}" alt="Issue image for {{ log.report_date }}" class="issue-preview">
+            </a>
+            {% endif %}
+        </article>
+        {% endfor %}
+    </div>
+    {% endif %}
+</section>
+
+<section class="panel" id="ganttSection">
+    <div class="panel-head">
+        <h2>Gantt Chart</h2>
+        <p>Click any activity bar to view manpower and quantity details.</p>
+    </div>
+
+    <script type="application/json" id="gantt-data">
+{{ gantt_data_json|safe }}
+</script>
+
+    <div id="ganttTimeline" class="gantt-container"></div>
+    <div id="ganttInfo" class="gantt-info"></div>
+</section>
+
+<section class="panel" id="progressReportSection">
+    <div class="panel-head">
+        <h2>Progress Report</h2>
+        <p>Based on Gantt manpower progress. Green = On Schedule, Orange = Minor Delay, Red = Significant Delay.</p>
+    </div>
+    <div class="table-wrap progress-report-wrap">
+        <table class="project-table">
+            <thead>
+            <tr>
+                <th>Activity</th>
+                <th>Planned %</th>
+                <th>Actual %</th>
+                <th>Status</th>
+                <th>Delay Date</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for row in activity_progress_rows %}
+            <tr>
+                <td>{{ row.name }}</td>
+                <td>{{ row.planned_progress }}%</td>
+                <td>{{ row.actual_progress }}%</td>
+                <td>
+                    <span class="delay-pill delay-pill-{{ row.delay_status_key }}">
+                        {{ row.delay_status_label }}
+                    </span>
+                </td>
+                <td>{{ row.delay_date|default:"-" }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5">No scheduled activities yet.</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+</main>
+
+<div id="manpowerModal" class="modal is-hidden" aria-hidden="true">
+    <div class="modal-backdrop" data-close-modal></div>
+    <div class="modal-content" role="dialog" aria-modal="true" aria-label="Manpower settings">
+        <div class="modal-header">
+            <h2>Manpower Settings</h2>
+            <button type="button" class="modal-close" data-close-modal>&times;</button>
+        </div>
+
+        <div class="modal-options">
+            <button type="button" id="modalSettingsBtn" class="workspace-link is-active">Settings</button>
+            <button type="button" id="modalReportsBtn" class="workspace-link">Reports</button>
+        </div>
+
+        <div id="modalSettingsView">
+            <div class="manpower-filters">
+                <input
+                    type="text"
+                    id="manpowerSearch"
+                    class="manpower-filter-input"
+                    placeholder="Filter activity name..."
+                >
+                <select id="manpowerRoleFilter" class="manpower-filter-select">
+                    <option value="ALL">All Roles</option>
+                    <option value="FOREMAN">Foreman</option>
+                    <option value="SKILLED WORKER">Skilled Worker</option>
+                    <option value="LABOR">Labor</option>
+                </select>
+            </div>
+
+            <form method="post" class="manpower-form">
+                {% csrf_token %}
+                <div class="manpower-filters">
+                    <label for="manpowerEntryDate" class="manpower-filter-label">Entry Date</label>
+                    <input
+                        type="date"
+                        id="manpowerEntryDate"
+                        name="manpower_entry_date"
+                        class="manpower-filter-select"
+                        value="{{ today_iso }}"
+                    >
+                </div>
+                <div class="manpower-list" id="manpowerList">
+                    {% for act in manpower_activities %}
+                        <article class="manpower-card">
+                            <h3>{{ act.name }}</h3>
+                            <table class="manpower-table">
+                                <thead>
+                                <tr>
+                                    <th>Role</th>
+                                    <th>Required</th>
+                                    <th>Actual</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                {% for row in act.manpower.all %}
+                                <tr>
+                                    <td>{{ row.role.name|upper }}</td>
+                                    <td>{{ row.required }}</td>
+                                    <td>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            name="actual_{{ row.id }}"
+                                            value="{{ row.actual }}"
+                                            class="actual-input"
+                                        >
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </article>
+                    {% empty %}
+                    <div class="empty-state">
+                        <p>No manpower records found yet.</p>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div id="manpowerFilterEmpty" class="empty-state is-hidden">
+                    <p>No manpower rows match your filter.</p>
+                </div>
+                <div class="manpower-actions">
+                    <button type="button" class="btn btn-ghost" data-close-modal>Close</button>
+                    <button type="submit" class="btn btn-primary">Save Manpower Settings</button>
+                </div>
+            </form>
+        </div>
+
+        <div id="modalReportsView" class="is-hidden">
+            <div class="panel-head report-head">
+                <h2>Manpower Report</h2>
+                <p>Report based on saved manpower settings.</p>
+            </div>
+
+            <div class="report-kpis">
+                <div class="report-kpi">
+                    <p class="report-kpi-label">Total Required</p>
+                    <p class="report-kpi-value">{{ total_required_workers }}</p>
+                </div>
+                <div class="report-kpi">
+                    <p class="report-kpi-label">Total Actual</p>
+                    <p class="report-kpi-value">{{ total_actual_workers }}</p>
+                </div>
+                <div class="report-kpi">
+                    <p class="report-kpi-label">Manpower Completion</p>
+                    <p class="report-kpi-value">{{ manpower_completion }}%</p>
+                </div>
+            </div>
+
+            <div class="manpower-filters">
+                <label for="manpowerReportDateFilter" class="manpower-filter-label">Filter Date</label>
+                <input type="date" id="manpowerReportDateFilter" class="manpower-filter-select">
+            </div>
+
+            {% if manpower_report_details %}
+            <div class="table-wrap">
+                <table class="project-table" id="manpowerReportTable">
+                    <thead>
+                    <tr>
+                        <th>Date Added</th>
+                        <th>Activity</th>
+                        <th>Role</th>
+                        <th>Required</th>
+                        <th>Actual</th>
+                        <th>Completion</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for row in manpower_report_details %}
+                    <tr data-report-date="{{ row.report_date }}">
+                        <td>{% if row.updated_at %}{{ row.updated_at|date:"Y-m-d H:i" }}{% else %}-{% endif %}</td>
+                        <td>{{ row.activity }}</td>
+                        <td>{{ row.role }}</td>
+                        <td>{{ row.required }}</td>
+                        <td>{{ row.actual }}</td>
+                        <td>{{ row.completion }}%</td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div id="manpowerReportEmpty" class="empty-state is-hidden">
+                <p>No report rows for selected date.</p>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <p>No manpower report data available yet.</p>
+            </div>
+            {% endif %}
+
+        </div>
+    </div>
+</div>
+
+<div id="equipmentModal" class="modal is-hidden" aria-hidden="true">
+    <div class="modal-backdrop" data-close-equipment-modal></div>
+    <div class="modal-content" role="dialog" aria-modal="true" aria-label="Equipment settings">
+        <div class="modal-header">
+            <h2>Equipment Settings</h2>
+            <button type="button" class="modal-close" data-close-equipment-modal>&times;</button>
+        </div>
+
+        <div class="modal-options">
+            <button type="button" id="equipmentSettingsBtn" class="workspace-link is-active">Settings</button>
+            <button type="button" id="equipmentReportsBtn" class="workspace-link">Reports</button>
+        </div>
+
+        <div id="equipmentSettingsView">
+            <form method="post" class="manpower-form">
+                {% csrf_token %}
+                <input type="hidden" name="save_equipment" value="1">
+                <div class="manpower-filters">
+                    <label for="equipmentEntryDate" class="manpower-filter-label">Entry Date</label>
+                    <input
+                        type="date"
+                        id="equipmentEntryDate"
+                        name="equipment_entry_date"
+                        class="manpower-filter-select"
+                        value="{{ today_iso }}"
+                    >
+                </div>
+
+                <div class="equipment-list" id="equipmentList">
+                    {% for act in equipment_activities %}
+                    <article class="equipment-day-card">
+                        <p class="equipment-date">
+                            {% if act.start_date %}
+                                {{ act.start_date|date:"F d, Y" }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </p>
+                        <div class="equipment-card">
+                            <h3>{{ act.name|upper }}</h3>
+                            <table class="equipment-table">
+                                <thead>
+                                <tr>
+                                    <th>Equipment</th>
+                                    <th>Required Capacity</th>
+                                    <th>Actual Capacity</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                {% for row in act.equipment.all %}
+                                <tr>
+                                    <td>{{ row.equipment.name|upper }}</td>
+                                    <td>
+                                        {% if row.required %}
+                                            {{ row.required|floatformat:2 }}
+                                        {% else %}
+                                            {{ row.quantity }}
+                                        {% endif %}
+                                        {{ row.unit|default:act.unit }}
+                                    </td>
+                                    <td>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            name="eq_actual_{{ row.id }}"
+                                            value="{{ row.actual|floatformat:2 }}"
+                                            class="actual-input"
+                                        >
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="3">No equipment mapping found for this activity.</td>
+                                </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </article>
+                    {% empty %}
+                    <div class="empty-state">
+                        <p>No equipment records found yet. Run the equipment seeder first.</p>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="manpower-actions">
+                    <button type="button" class="btn btn-ghost" data-close-equipment-modal>Close</button>
+                    <button type="submit" class="btn btn-primary">Save Equipment Settings</button>
+                </div>
+            </form>
+        </div>
+
+        <div id="equipmentReportsView" class="is-hidden">
+            <div class="panel-head report-head">
+                <h2>Equipment Report</h2>
+                <p>Report based on saved equipment settings.</p>
+            </div>
+
+            <div class="report-kpis">
+                <div class="report-kpi">
+                    <p class="report-kpi-label">Total Required Capacity</p>
+                    <p class="report-kpi-value">{{ total_required_equipment }}</p>
+                </div>
+                <div class="report-kpi">
+                    <p class="report-kpi-label">Total Actual Capacity</p>
+                    <p class="report-kpi-value">{{ total_actual_equipment }}</p>
+                </div>
+                <div class="report-kpi">
+                    <p class="report-kpi-label">Equipment Completion</p>
+                    <p class="report-kpi-value">{{ equipment_completion }}%</p>
+                </div>
+            </div>
+
+            <div class="manpower-filters">
+                <label for="equipmentReportDateFilter" class="manpower-filter-label">Filter Date</label>
+                <input type="date" id="equipmentReportDateFilter" class="manpower-filter-select">
+            </div>
+
+            {% if equipment_report_details %}
+            <div class="table-wrap">
+                <table class="project-table" id="equipmentReportTable">
+                    <thead>
+                    <tr>
+                        <th>Date Added</th>
+                        <th>Activity</th>
+                        <th>Equipment</th>
+                        <th>Required</th>
+                        <th>Actual</th>
+                        <th>Unit</th>
+                        <th>Completion</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for row in equipment_report_details %}
+                    <tr data-report-date="{{ row.report_date }}">
+                        <td>{% if row.updated_at %}{{ row.updated_at|date:"Y-m-d H:i" }}{% else %}-{% endif %}</td>
+                        <td>{{ row.activity }}</td>
+                        <td>{{ row.equipment }}</td>
+                        <td>{{ row.required }}</td>
+                        <td>{{ row.actual }}</td>
+                        <td>{{ row.unit|default:"-" }}</td>
+                        <td>{{ row.completion }}%</td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div id="equipmentReportEmpty" class="empty-state is-hidden">
+                <p>No equipment report rows for selected date.</p>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <p>No equipment report data available yet.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script src="{% static 'core/js/formulas.js' %}"></script>
+<script src="{% static 'core/js/gantt.js' %}?v=20260223_17"></script>
+<script src="{% static 'core/js/manpower.js' %}"></script>
+<script src="{% static 'core/js/equipment.js' %}?v=20260223_1"></script>
+<script src="{% static 'core/js/project-detail-tabs.js' %}?v=20260223_2"></script>
+{% include 'core/partials/page_loader.html' %}
+<script src="{% static 'core/js/page-loader.js' %}?v=20260223_2"></script>
+</body>
+</html>

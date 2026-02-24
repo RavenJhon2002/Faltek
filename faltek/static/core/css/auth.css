@@ -1,0 +1,129 @@
+:root {
+    --auth-overlay: rgba(9, 18, 35, 0.55);
+    --auth-card: rgba(255, 255, 255, 0.96);
+    --auth-ink: #132238;
+    --auth-brand: #1e3f77;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body.auth-body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: "Trebuchet MS", "Gill Sans", "Century Gothic", sans-serif;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.auth-overlay {
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: 1.3fr minmax(320px, 420px);
+    gap: 24px;
+    align-items: center;
+    padding: 24px clamp(16px, 4vw, 64px);
+    background: var(--auth-overlay);
+}
+
+.auth-hero {
+    color: #fff;
+}
+
+.auth-hero h1 {
+    margin: 0 0 12px;
+    font-size: clamp(42px, 8vw, 88px);
+    line-height: 1.05;
+}
+
+.auth-hero p {
+    margin: 0;
+    font-size: clamp(24px, 5vw, 62px);
+    line-height: 1.12;
+    font-weight: 400;
+}
+
+.auth-hero p span {
+    font-weight: 800;
+}
+
+.auth-card {
+    background: var(--auth-card);
+    border-radius: 14px;
+    padding: clamp(16px, 2.4vw, 30px);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+}
+
+.auth-card h2 {
+    margin: 0 0 14px;
+    color: var(--auth-ink);
+    text-align: center;
+    font-size: 30px;
+}
+
+.auth-form p {
+    margin: 0 0 12px;
+}
+
+.auth-form label {
+    display: block;
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: #2f435b;
+}
+
+.auth-form input {
+    width: 100%;
+    border: 1px solid #c9d6e8;
+    border-radius: 9px;
+    padding: 10px 12px;
+    font-size: 15px;
+}
+
+.auth-btn {
+    width: 100%;
+    padding: 11px;
+    border: 0;
+    border-radius: 9px;
+    background: var(--auth-brand);
+    color: #fff;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.auth-link {
+    margin-top: 14px;
+    text-align: center;
+    color: #4f6076;
+}
+
+.auth-link a {
+    color: var(--auth-brand);
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.auth-error {
+    margin: 0 0 10px;
+    text-align: center;
+    color: #d04545;
+    font-weight: 700;
+}
+
+@media (max-width: 900px) {
+    .auth-overlay {
+        grid-template-columns: 1fr;
+        gap: 14px;
+    }
+
+    .auth-hero {
+        text-align: center;
+    }
+
+    .auth-card {
+        width: min(100%, 500px);
+        margin: 0 auto;
+    }
+}

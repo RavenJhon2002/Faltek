@@ -1,0 +1,109 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FalTek Projects</title>
+    <link rel="stylesheet" href="{% static 'core/css/gantt.css' %}?v=20260223_29">
+    <link rel="stylesheet" href="{% static 'core/css/page-loader.css' %}?v=20260223_2">
+</head>
+<body class="site-shell">
+<header class="top-header">
+    <div class="top-header-inner">
+        <span class="top-brand">
+            <img src="{% static 'images/logo1.png' %}" alt="Faltek" class="top-brand-logo">
+        </span>
+        <span class="top-user">{{ request.user.username }}</span>
+    </div>
+</header>
+<header class="site-header">
+    <div>
+        <p class="eyebrow">Project Control</p>
+        <h1>FalTek Projects</h1>
+    </div>
+    <div class="header-actions">
+        <a class="btn btn-primary" href="{% url 'project_create' %}">Create Project</a>
+        <form method="post" action="{% url 'logout' %}" class="inline-form">
+            {% csrf_token %}
+            <button class="btn btn-ghost" type="submit">Logout</button>
+        </form>
+    </div>
+</header>
+
+<main class="page-grid">
+<section class="panel">
+    <div class="panel-head">
+        <h2>Project Timeline</h2>
+        <p>Quick scheduling view across your projects.</p>
+    </div>
+
+    <script type="application/json" id="gantt-data">
+[
+    {% for project in projects %}
+    {
+        "name": "{{ project.name }}",
+        "start": "{{ project.start_date|date:'Y-m-d' }}",
+        "end": "{{ project.end_date|date:'Y-m-d' }}",
+        "actual": {{ project.actual|default:"0" }},
+        "required": {{ project.required|default:"100" }}
+    }{% if not forloop.last %},{% endif %}
+    {% endfor %}
+]
+</script>
+
+    <div id="ganttTimeline" class="gantt-container"></div>
+</section>
+
+<section class="panel">
+    <div class="panel-head">
+        <h2>Projects</h2>
+        <p>Open a project to view activities and detailed Gantt planning.</p>
+    </div>
+
+    {% if projects %}
+    <div class="table-wrap">
+        <table class="project-table">
+            <thead>
+            <tr>
+                <th>Project</th>
+                <th>Description</th>
+                <th>Start</th>
+                <th>End</th>
+                <th>Actions</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for project in projects %}
+            <tr>
+                <td>
+                    <a class="project-link" href="{% url 'project_detail' project.id %}">
+                        {{ project.name }}
+                    </a>
+                </td>
+                <td>{{ project.description|default:"-" }}</td>
+                <td>{{ project.start_date|default:"-" }}</td>
+                <td>{{ project.end_date|default:"-" }}</td>
+                <td class="table-actions">
+                    <a href="{% url 'project_edit' project.id %}">Edit</a>
+                    <a href="{% url 'project_delete' project.id %}">Delete</a>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>No projects yet. Create one to start building your timeline.</p>
+    </div>
+    {% endif %}
+</section>
+</main>
+
+<script src="{% static 'core/js/formulas.js' %}"></script>
+<script src="{% static 'core/js/gantt.js' %}?v=20260223_17"></script>
+{% include 'core/partials/page_loader.html' %}
+<script src="{% static 'core/js/page-loader.js' %}?v=20260223_2"></script>
+</body>
+</html>

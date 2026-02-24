@@ -1,0 +1,29 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delete Project</title>
+    <link rel="stylesheet" href="{% static 'core/css/simple-pages.css' %}?v=20260223_1">
+    <link rel="stylesheet" href="{% static 'core/css/page-loader.css' %}?v=20260223_2">
+</head>
+<body class="simple-shell">
+<main class="simple-wrap">
+    <section class="simple-card">
+        <h1>Delete Project</h1>
+        <p class="simple-note">Are you sure you want to delete <strong>"{{ project.name }}"</strong>?</p>
+
+        <form method="post" class="simple-form">
+            {% csrf_token %}
+            <div class="simple-actions">
+                <button type="submit" class="simple-btn simple-btn-danger">Yes, Delete</button>
+                <a href="{% url 'project_list' %}" class="simple-btn simple-btn-ghost">Cancel</a>
+            </div>
+        </form>
+    </section>
+</main>
+{% include 'core/partials/page_loader.html' %}
+<script src="{% static 'core/js/page-loader.js' %}?v=20260223_2"></script>
+</body>
+</html>

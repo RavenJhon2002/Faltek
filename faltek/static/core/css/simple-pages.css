@@ -1,0 +1,112 @@
+* {
+    box-sizing: border-box;
+}
+
+body.simple-shell {
+    margin: 0;
+    min-height: 100vh;
+    font-family: "Trebuchet MS", "Gill Sans", "Century Gothic", sans-serif;
+    background: linear-gradient(160deg, #eef3ff, #e3eaf8);
+    color: #132238;
+}
+
+.simple-wrap {
+    width: min(920px, calc(100% - 28px));
+    margin: 22px auto 34px;
+}
+
+.simple-card {
+    background: #fff;
+    border: 1px solid #cfd9e8;
+    border-radius: 14px;
+    padding: clamp(14px, 2.5vw, 22px);
+    box-shadow: 0 8px 22px rgba(8, 28, 44, 0.08);
+}
+
+.simple-card h1,
+.simple-card h2 {
+    margin: 0 0 12px;
+}
+
+.simple-form p {
+    margin: 0 0 12px;
+}
+
+.simple-form label {
+    display: block;
+    font-weight: 700;
+    margin-bottom: 6px;
+}
+
+.simple-form input,
+.simple-form select,
+.simple-form textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #c9d6e8;
+    border-radius: 8px;
+    font-size: 15px;
+}
+
+.simple-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+}
+
+.simple-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    padding: 10px 14px;
+    text-decoration: none;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.simple-btn-primary {
+    background: #1e3f77;
+    color: #fff;
+}
+
+.simple-btn-primary:hover {
+    background: #162f5b;
+}
+
+.simple-btn-danger {
+    background: #c64035;
+    color: #fff;
+}
+
+.simple-btn-ghost {
+    background: #fff;
+    color: #132238;
+    border-color: #cfd9e8;
+}
+
+.simple-note {
+    color: #4f6076;
+}
+
+#gantt {
+    min-height: 340px;
+    overflow-x: auto;
+}
+
+@media (max-width: 640px) {
+    .simple-wrap {
+        width: calc(100% - 18px);
+        margin-top: 14px;
+    }
+
+    .simple-actions {
+        flex-direction: column;
+    }
+
+    .simple-btn {
+        width: 100%;
+    }
+}

@@ -1,0 +1,40 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FalTek | Sign Up</title>
+    <link rel="stylesheet" href="{% static 'core/css/auth.css' %}?v=20260223_1">
+    <link rel="stylesheet" href="{% static 'core/css/page-loader.css' %}?v=20260223_2">
+</head>
+<body class="auth-body" style="background-image: url('{% static 'images/bg.jpg' %}');">
+<div class="auth-overlay">
+    <div class="auth-hero">
+        <h1>FalTek</h1>
+        <p>
+            Stay on <span>Schedule.</span><br>
+            Stay in <span>Control.</span><br>
+            Stay <span>Ahead.</span>
+        </p>
+    </div>
+
+    <div class="auth-card">
+        <h2>Create Account</h2>
+
+        <form method="post" class="auth-form">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <button type="submit" class="auth-btn">Sign Up</button>
+        </form>
+
+        <div class="auth-link">
+            <p>Already have an account?</p>
+            <a href="{% url 'login' %}">Login</a>
+        </div>
+    </div>
+</div>
+{% include 'core/partials/page_loader.html' %}
+<script src="{% static 'core/js/page-loader.js' %}?v=20260223_2"></script>
+</body>
+</html>

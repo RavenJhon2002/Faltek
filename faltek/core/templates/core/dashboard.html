@@ -1,0 +1,29 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="{% static 'core/css/simple-pages.css' %}?v=20260223_1">
+    <link rel="stylesheet" href="{% static 'core/css/page-loader.css' %}?v=20260223_2">
+    <link rel="stylesheet" href="https://unpkg.com/frappe-gantt/dist/frappe-gantt.css">
+    <script src="https://unpkg.com/frappe-gantt/dist/frappe-gantt.js"></script>
+</head>
+<body class="simple-shell">
+<main class="simple-wrap">
+    <section class="simple-card">
+        <h2>Project Dashboard</h2>
+        <p class="simple-note">Quick timeline summary across projects.</p>
+        <div id="gantt"></div>
+    </section>
+</main>
+
+<script>
+    const tasks = {{ gantt_data|safe }};
+    new Gantt("#gantt", tasks);
+</script>
+{% include 'core/partials/page_loader.html' %}
+<script src="{% static 'core/js/page-loader.js' %}?v=20260223_2"></script>
+</body>
+</html>
