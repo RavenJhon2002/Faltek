@@ -151,7 +151,7 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / "staticfiles"
 if importlib.util.find_spec("whitenoise") is not None:
-    STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+    STATICFILES_STORAGE = "whitenoise.storage.CompressedStaticFilesStorage"
     # Keep static file serving resilient if collectstatic is missed in a deploy.
     WHITENOISE_USE_FINDERS = True
     # Avoid build failure when a CSS/JS source-map or asset reference is missing.
@@ -176,7 +176,7 @@ if cloudinary_enabled and importlib.util.find_spec("cloudinary_storage") is not 
     }
     STORAGES = {
         "default": {"BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage"},
-        "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+        "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"},
     }
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
