@@ -16,6 +16,12 @@ services:
         fromDatabase:
           name: faltek-db
           property: connectionString
+      - key: MEDIA_ROOT
+        value: /var/data/media
+    disk:
+      name: faltek-media
+      mountPath: /var/data
+      sizeGB: 1
 
 databases:
   - name: faltek-db
