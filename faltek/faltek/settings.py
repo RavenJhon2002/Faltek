@@ -154,6 +154,8 @@ if importlib.util.find_spec("whitenoise") is not None:
     STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
     # Keep static file serving resilient if collectstatic is missed in a deploy.
     WHITENOISE_USE_FINDERS = True
+    # Avoid build failure when a CSS/JS source-map or asset reference is missing.
+    WHITENOISE_MANIFEST_STRICT = False
 
 STATICFILES_DIRS = [
     BASE_DIR / "static",
