@@ -50,9 +50,23 @@ class ProjectIssueLogForm(forms.ModelForm):
         if not image:
             return image
 
-        content_type = getattr(image, "content_type", "")
-        if not content_type.startswith("image/"):
-            raise forms.ValidationError("Please upload a valid image file.")
+        # Some browsers/devices do not send a reliable MIME type.
+        content_type = (getattr(image, "content_type", "") or "").lower()
+        filename = (getattr(image, "name", "") or "").lower()
+        allowed_extensions = (
+            ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".heic", ".heif"
+        )
+
+        is_image_mime = content_type.startswith("image/")
+        is_image_extension = filename.endswith(allowed_extensions)
+        if not (is_image_mime or is_image_extension):
+            raise forms.ValidationError(
+                "Please upload a valid image file (jpg, jpeg, png, gif, webp, bmp, heic, heif)."
+            )
+
+        max_bytes = 10 * 1024 * 1024  # 10 MB
+        if image.size > max_bytes:
+            raise forms.ValidationError("Image is too large. Maximum size is 10 MB.")
 
         return image
 
