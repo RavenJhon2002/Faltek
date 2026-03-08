@@ -75,7 +75,15 @@
         "submit",
         function (event) {
             const form = event.target;
+            const submitter = event.submitter;
             if (!(form instanceof HTMLFormElement)) {
+                return;
+            }
+            const hasFileInput = !!form.querySelector('input[type="file"]');
+            const isMultipart =
+                (form.enctype || "").toLowerCase() === "multipart/form-data";
+            if (hasFileInput || isMultipart) {
+                // Let native submit handle file uploads directly.
                 return;
             }
             if (form.target === "_blank") {
@@ -94,6 +102,15 @@
             form.dataset.loaderSubmitted = "1";
             showLoader();
             window.setTimeout(function () {
+                // Preserve clicked submit button name/value (e.g. action=upload_boq).
+                if (typeof form.requestSubmit === "function") {
+                    if (submitter && form.contains(submitter)) {
+                        form.requestSubmit(submitter);
+                        return;
+                    }
+                    form.requestSubmit();
+                    return;
+                }
                 form.submit();
             }, LOADER_DELAY_MS);
         },

@@ -1,7 +1,7 @@
 document.addEventListener("DOMContentLoaded", function () {
     const shouldOpenReports = document.body && document.body.dataset.openReports === "1";
     const shouldOpenEquipment = document.body && document.body.dataset.openEquipment === "1";
-    const openEquipmentView = (document.body && document.body.dataset.openEquipmentView) || "settings";
+    const isViewerMode = document.body && document.body.dataset.viewerMode === "1";
     const homeTab = document.getElementById("homeTab");
     const manpowerTab = document.getElementById("manpowerTab");
     const reportsTab = document.getElementById("reportsTab");
@@ -11,20 +11,27 @@ document.addEventListener("DOMContentLoaded", function () {
     const progressOverview = document.getElementById("progress-overview");
     const ganttSection = document.getElementById("ganttSection");
     const reportIssuesSection = document.getElementById("reportIssuesSection");
+    const reportsIssuesTab = document.getElementById("reportsIssuesTab");
+    const reportsProgressTab = document.getElementById("reportsProgressTab");
+    const reportsManpowerTab = document.getElementById("reportsManpowerTab");
+    const reportsEquipmentTab = document.getElementById("reportsEquipmentTab");
+    const reportsIssuesView = document.getElementById("reportsIssuesView");
+    const reportsProgressView = document.getElementById("reportsProgressView");
+    const reportsManpowerView = document.getElementById("reportsManpowerView");
+    const reportsEquipmentView = document.getElementById("reportsEquipmentView");
     const manpowerModal = document.getElementById("manpowerModal");
     const equipmentModal = document.getElementById("equipmentModal");
     const modalSettingsBtn = document.getElementById("modalSettingsBtn");
-    const modalReportsBtn = document.getElementById("modalReportsBtn");
     const modalSettingsView = document.getElementById("modalSettingsView");
-    const modalReportsView = document.getElementById("modalReportsView");
     const equipmentSettingsBtn = document.getElementById("equipmentSettingsBtn");
-    const equipmentReportsBtn = document.getElementById("equipmentReportsBtn");
     const equipmentSettingsView = document.getElementById("equipmentSettingsView");
-    const equipmentReportsView = document.getElementById("equipmentReportsView");
     const closeModalButtons = Array.from(document.querySelectorAll("[data-close-modal]"));
     const closeEquipmentModalButtons = Array.from(document.querySelectorAll("[data-close-equipment-modal]"));
+    const copyViewerLinkBtn = document.getElementById("copyViewerLinkBtn");
+    const viewerLinkInput = document.getElementById("viewerLinkInput");
+    let currentReportsView = "issues";
 
-    if (!homeTab || !manpowerTab || !homeView) {
+    if (!homeTab || !homeView) {
         return;
     }
 
@@ -41,6 +48,9 @@ document.addEventListener("DOMContentLoaded", function () {
         }
         if (reportIssuesSection) {
             reportIssuesSection.classList.toggle("is-hidden", !showReports);
+            if (showReports) {
+                activateReportsSubview(currentReportsView);
+            }
         }
 
         homeTab.classList.toggle("is-active", showHome);
@@ -52,26 +62,55 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
-    function activateModal(view) {
-        if (!modalSettingsBtn || !modalReportsBtn || !modalSettingsView || !modalReportsView) {
-            return;
+    function activateReportsSubview(view) {
+        const validView = view === "progress" || view === "manpower" || view === "equipment" ? view : "issues";
+        currentReportsView = validView;
+
+        if (reportsIssuesView) {
+            reportsIssuesView.classList.toggle("is-hidden", validView !== "issues");
+        }
+        if (reportsProgressView) {
+            reportsProgressView.classList.toggle("is-hidden", validView !== "progress");
+        }
+        if (reportsManpowerView) {
+            reportsManpowerView.classList.toggle("is-hidden", validView !== "manpower");
+        }
+        if (reportsEquipmentView) {
+            reportsEquipmentView.classList.toggle("is-hidden", validView !== "equipment");
         }
 
-        const showSettings = view === "settings";
-        modalSettingsView.classList.toggle("is-hidden", !showSettings);
-        modalReportsView.classList.toggle("is-hidden", showSettings);
-        modalSettingsBtn.classList.toggle("is-active", showSettings);
-        modalReportsBtn.classList.toggle("is-active", !showSettings);
+        if (reportsIssuesTab) {
+            reportsIssuesTab.classList.toggle("is-active", validView === "issues");
+        }
+        if (reportsProgressTab) {
+            reportsProgressTab.classList.toggle("is-active", validView === "progress");
+        }
+        if (reportsManpowerTab) {
+            reportsManpowerTab.classList.toggle("is-active", validView === "manpower");
+        }
+        if (reportsEquipmentTab) {
+            reportsEquipmentTab.classList.toggle("is-active", validView === "equipment");
+        }
     }
 
-    function openManpowerModal(view) {
+    function activateModal() {
+        if (!modalSettingsView) {
+            return;
+        }
+        modalSettingsView.classList.remove("is-hidden");
+        if (modalSettingsBtn) {
+            modalSettingsBtn.classList.add("is-active");
+        }
+    }
+
+    function openManpowerModal() {
         if (!manpowerModal) {
             return;
         }
         manpowerModal.classList.remove("is-hidden");
         manpowerModal.setAttribute("aria-hidden", "false");
         closeEquipmentModal();
-        activateModal(view || "settings");
+        activateModal();
     }
 
     function closeManpowerModal() {
@@ -82,19 +121,17 @@ document.addEventListener("DOMContentLoaded", function () {
         manpowerModal.setAttribute("aria-hidden", "true");
     }
 
-    function activateEquipmentModal(view) {
-        if (!equipmentSettingsBtn || !equipmentReportsBtn || !equipmentSettingsView || !equipmentReportsView) {
+    function activateEquipmentModal() {
+        if (!equipmentSettingsView) {
             return;
         }
-
-        const showSettings = view === "settings";
-        equipmentSettingsView.classList.toggle("is-hidden", !showSettings);
-        equipmentReportsView.classList.toggle("is-hidden", showSettings);
-        equipmentSettingsBtn.classList.toggle("is-active", showSettings);
-        equipmentReportsBtn.classList.toggle("is-active", !showSettings);
+        equipmentSettingsView.classList.remove("is-hidden");
+        if (equipmentSettingsBtn) {
+            equipmentSettingsBtn.classList.add("is-active");
+        }
     }
 
-    function openEquipmentModal(view) {
+    function openEquipmentModal() {
         if (!equipmentModal) {
             return;
         }
@@ -105,7 +142,7 @@ document.addEventListener("DOMContentLoaded", function () {
         if (equipmentTab) {
             equipmentTab.classList.add("is-active");
         }
-        activateEquipmentModal(view || "settings");
+        activateEquipmentModal();
     }
 
     function closeEquipmentModal() {
@@ -126,11 +163,13 @@ document.addEventListener("DOMContentLoaded", function () {
         activateMain("home");
     });
 
-    manpowerTab.addEventListener("click", function (event) {
-        event.preventDefault();
-        activateMain("home");
-        openManpowerModal("settings");
-    });
+    if (manpowerTab) {
+        manpowerTab.addEventListener("click", function (event) {
+            event.preventDefault();
+            activateMain("home");
+            openManpowerModal();
+        });
+    }
 
     if (reportsTab) {
         reportsTab.addEventListener("click", function (event) {
@@ -141,41 +180,53 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
+    if (reportsIssuesTab) {
+        reportsIssuesTab.addEventListener("click", function () {
+            activateReportsSubview("issues");
+        });
+    }
+
+    if (reportsProgressTab) {
+        reportsProgressTab.addEventListener("click", function () {
+            activateReportsSubview("progress");
+        });
+    }
+
+    if (reportsManpowerTab) {
+        reportsManpowerTab.addEventListener("click", function () {
+            activateReportsSubview("manpower");
+        });
+    }
+
+    if (reportsEquipmentTab) {
+        reportsEquipmentTab.addEventListener("click", function () {
+            activateReportsSubview("equipment");
+        });
+    }
+
     if (equipmentTab) {
         equipmentTab.addEventListener("click", function (event) {
             event.preventDefault();
-            openEquipmentModal("settings");
+            openEquipmentModal();
         });
     }
 
     if (openManpowerBtn) {
         openManpowerBtn.addEventListener("click", function () {
             activateMain("home");
-            openManpowerModal("settings");
+            openManpowerModal();
         });
     }
 
     if (modalSettingsBtn) {
         modalSettingsBtn.addEventListener("click", function () {
-            activateModal("settings");
-        });
-    }
-
-    if (modalReportsBtn) {
-        modalReportsBtn.addEventListener("click", function () {
-            activateModal("reports");
+            activateModal();
         });
     }
 
     if (equipmentSettingsBtn) {
         equipmentSettingsBtn.addEventListener("click", function () {
-            activateEquipmentModal("settings");
-        });
-    }
-
-    if (equipmentReportsBtn) {
-        equipmentReportsBtn.addEventListener("click", function () {
-            activateEquipmentModal("reports");
+            activateEquipmentModal();
         });
     }
 
@@ -203,12 +254,34 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     activateMain("home");
+    activateReportsSubview("issues");
 
     if (shouldOpenReports) {
         activateMain("reports");
     }
 
     if (shouldOpenEquipment) {
-        openEquipmentModal(openEquipmentView);
+        openEquipmentModal();
+    }
+
+    if (copyViewerLinkBtn && viewerLinkInput) {
+        copyViewerLinkBtn.addEventListener("click", function () {
+            const value = viewerLinkInput.value || "";
+            if (!value) {
+                return;
+            }
+
+            navigator.clipboard.writeText(value).then(function () {
+                copyViewerLinkBtn.textContent = "Copied";
+                window.setTimeout(function () {
+                    copyViewerLinkBtn.textContent = "Copy Link";
+                }, 1200);
+            });
+        });
+    }
+
+    if (isViewerMode) {
+        closeManpowerModal();
+        closeEquipmentModal();
     }
 });

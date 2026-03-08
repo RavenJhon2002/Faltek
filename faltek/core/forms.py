@@ -10,11 +10,23 @@ class ProjectForm(forms.ModelForm):
             "location",
             "description",
             "start_date",
-            "end_date",
         ]
+        widgets = {
+            "start_date": forms.DateInput(format="%Y-%m-%d", attrs={"type": "date"}),
+        }
 
 class BOQUploadForm(forms.Form):
     file = forms.FileField(label="Upload BOQ Excel File")
+
+    def clean_file(self):
+        uploaded = self.cleaned_data["file"]
+        filename = (uploaded.name or "").lower()
+        allowed_extensions = (".xlsx", ".xlsm", ".xltx", ".xltm")
+        if not filename.endswith(allowed_extensions):
+            raise forms.ValidationError(
+                "Upload a valid Excel workbook (.xlsx, .xlsm, .xltx, .xltm)."
+            )
+        return uploaded
 
 
 class ProjectIssueLogForm(forms.ModelForm):

@@ -365,6 +365,21 @@ p {
     z-index: 1;
 }
 
+.gantt-grid-task-label.status-ontrack {
+    background: var(--ok);
+    color: #ffffff;
+}
+
+.gantt-grid-task-label.status-minor-delay {
+    background: var(--delay);
+    color: #ffffff;
+}
+
+.gantt-grid-task-label.status-delayed {
+    background: var(--danger);
+    color: #ffffff;
+}
+
 .gantt-task-name {
     font-weight: 700;
 }
@@ -387,7 +402,7 @@ p {
     cursor: pointer;
 }
 
-.gantt-grid-task-row:hover .gantt-grid-task-label {
+.gantt-grid-task-row:hover .gantt-grid-task-label:not(.status-ontrack):not(.status-minor-delay):not(.status-delayed) {
     background: #f4f9ff;
 }
 
@@ -409,6 +424,10 @@ p {
 
 .gantt-grid-day.is-active.is-delayed {
     background: var(--danger);
+}
+
+.gantt-grid-day.is-active.is-line-active {
+    background: #3b73d1;
 }
 
 .gantt-grid-day.has-delay-date {
@@ -561,6 +580,19 @@ p {
     margin-top: 16px;
 }
 
+.viewer-share {
+    margin-top: 10px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.simple-note {
+    color: var(--muted);
+    font-weight: 700;
+}
+
 .issue-log-form {
     border: 1px solid #b7c2cc;
     border-radius: 10px;
@@ -654,6 +686,17 @@ p {
     width: min(280px, 100%);
     border-radius: 8px;
     border: 1px solid #c4d0d8;
+}
+
+.report-subtabs {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+
+.report-subview .panel-head {
+    margin-top: 0;
 }
 
 .report-head {

@@ -192,7 +192,31 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     function parseDate(dateString) {
-        return new Date(dateString + "T00:00:00");
+        if (!dateString) {
+            return new Date(NaN);
+        }
+
+        const raw = String(dateString).trim();
+        if (!raw) {
+            return new Date(NaN);
+        }
+
+        if (raw.includes("T")) {
+            const dt = new Date(raw);
+            if (!Number.isNaN(dt.getTime())) {
+                return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
+            }
+        }
+
+        const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (match) {
+            const year = Number(match[1]);
+            const month = Number(match[2]) - 1;
+            const day = Number(match[3]);
+            return new Date(year, month, day);
+        }
+
+        return new Date(raw);
     }
 
     function formatDate(date) {
@@ -253,18 +277,18 @@ document.addEventListener("DOMContentLoaded", function () {
             const start = parseDate(task.start);
             const end = parseDate(task.end);
             const endForRange = end > start ? addDays(end, -1) : start;
-            const dates = [start, endForRange];
+            const dates = [endForRange];
             if (task.delay_date && task.delay_status && task.delay_status !== "on_schedule") {
                 dates.push(parseDate(task.delay_date));
             }
             return dates;
         });
 
-        const minDate = new Date(Math.min.apply(null, allDates));
-        const maxDate = new Date(Math.max.apply(null, allDates));
         const minStartDate = new Date(Math.min.apply(null, realTasks.map(function (task) {
             return parseDate(task.start);
         })));
+        const minDate = minStartDate;
+        const maxDate = new Date(Math.max.apply(null, allDates));
         const timelineDates = getDateRange(minDate, maxDate);
 
         const wrap = document.createElement("div");
@@ -333,13 +357,23 @@ document.addEventListener("DOMContentLoaded", function () {
             const delayStatus = task.delay_status || "on_schedule";
             const delayDate = task.delay_date || "";
             const delayDateObj = delayDate ? parseDate(delayDate) : null;
-            const noProgress = actual <= 0;
 
             const label = document.createElement("td");
             label.className = "gantt-grid-task-label";
+            if (delayStatus === "significant_delay") {
+                label.classList.add("status-delayed");
+            } else if (delayStatus === "minor_delay") {
+                label.classList.add("status-minor-delay");
+            } else if (delayStatus === "on_schedule") {
+                label.classList.add("status-ontrack");
+            }
             const labelName = document.createElement("div");
             labelName.className = "gantt-task-name";
             labelName.textContent = task.name;
+            const indentLevel = Number(task.indent_level || 0);
+            if (indentLevel > 0) {
+                labelName.style.paddingLeft = `${indentLevel * 18}px`;
+            }
             label.appendChild(labelName);
             label.style.width = colWidths.activity + "px";
             label.style.minWidth = colWidths.activity + "px";
@@ -354,14 +388,15 @@ document.addEventListener("DOMContentLoaded", function () {
                 const isActive = (date >= start && date < endExclusive) || sameDate(date, start);
                 if (isActive) {
                     cell.classList.add("is-active");
-                    if (noProgress) {
-                        cell.classList.add("is-noprogress");
-                    } else if (delayStatus === "significant_delay") {
+                    cell.classList.add("is-line-active");
+                    if (delayStatus === "significant_delay") {
                         cell.classList.add("is-delayed");
                     } else if (delayStatus === "minor_delay") {
                         cell.classList.add("is-minor-delay");
-                    } else {
+                    } else if (delayStatus === "on_schedule") {
                         cell.classList.add("is-ontrack");
+                    } else {
+                        cell.classList.add("is-noprogress");
                     }
                 }
                 if (delayDateObj && delayStatus !== "on_schedule" && sameDate(date, delayDateObj)) {

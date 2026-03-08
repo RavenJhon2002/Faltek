@@ -12,5 +12,6 @@ urlpatterns = [
     path("projects/<int:project_id>/gantt/",views.project_gantt,name="project_gantt"),
     path("dashboard/", views.dashboard, name="dashboard"),
     path('project/<int:pk>/', views.project_detail, name='project_detail'),
+    path("project/<int:pk>/viewer/<uuid:token>/", views.project_viewer, name="project_viewer"),
 
 ]   

@@ -34,29 +34,6 @@
 <main class="page-grid">
 <section class="panel">
     <div class="panel-head">
-        <h2>Project Timeline</h2>
-        <p>Quick scheduling view across your projects.</p>
-    </div>
-
-    <script type="application/json" id="gantt-data">
-[
-    {% for project in projects %}
-    {
-        "name": "{{ project.name }}",
-        "start": "{{ project.start_date|date:'Y-m-d' }}",
-        "end": "{{ project.end_date|date:'Y-m-d' }}",
-        "actual": {{ project.actual|default:"0" }},
-        "required": {{ project.required|default:"100" }}
-    }{% if not forloop.last %},{% endif %}
-    {% endfor %}
-]
-</script>
-
-    <div id="ganttTimeline" class="gantt-container"></div>
-</section>
-
-<section class="panel">
-    <div class="panel-head">
         <h2>Projects</h2>
         <p>Open a project to view activities and detailed Gantt planning.</p>
     </div>
@@ -95,14 +72,11 @@
     </div>
     {% else %}
     <div class="empty-state">
-        <p>No projects yet. Create one to start building your timeline.</p>
+        <p>No projects yet. Create one to get started.</p>
     </div>
     {% endif %}
 </section>
 </main>
-
-<script src="{% static 'core/js/formulas.js' %}"></script>
-<script src="{% static 'core/js/gantt.js' %}?v=20260223_17"></script>
 {% include 'core/partials/page_loader.html' %}
 <script src="{% static 'core/js/page-loader.js' %}?v=20260223_2"></script>
 </body>

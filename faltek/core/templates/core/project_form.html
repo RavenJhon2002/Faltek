@@ -18,7 +18,12 @@
             {% csrf_token %}
             {{ form.as_p }}
             <div class="simple-actions">
-                <button type="submit" class="simple-btn simple-btn-primary">Save</button>
+                <button type="submit" name="action" value="save" class="simple-btn simple-btn-primary">Save</button>
+                {% if edit_mode and project %}
+                <a href="{% url 'upload_boq' project.id %}" class="simple-btn simple-btn-primary">Upload BOQ</a>
+                {% else %}
+                <button type="submit" name="action" value="upload_boq" class="simple-btn simple-btn-primary">Upload BOQ</button>
+                {% endif %}
                 <a href="{% url 'project_list' %}" class="simple-btn simple-btn-ghost">Back to Projects</a>
             </div>
         </form>

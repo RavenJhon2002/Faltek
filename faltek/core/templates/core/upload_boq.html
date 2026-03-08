@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Upload BOQ</title>
-    <link rel="stylesheet" href="{% static 'core/css/simple-pages.css' %}?v=20260223_1">
+    <link rel="stylesheet" href="{% static 'core/css/simple-pages.css' %}?v=20260302_1">
     <link rel="stylesheet" href="{% static 'core/css/page-loader.css' %}?v=20260223_2">
 </head>
 <body class="simple-shell">
@@ -13,9 +13,20 @@
     <section class="simple-card">
         <h2>Upload BOQ for {{ project.name }}</h2>
         <p class="simple-note">Upload an Excel file to generate activities and scheduling data.</p>
+        <p class="simple-note">Schedule starts from the project start date. Optional: add a <strong>Duration</strong> column (days).</p>
 
         <form method="post" enctype="multipart/form-data" class="simple-form">
             {% csrf_token %}
+            {% if form.non_field_errors %}
+                <div class="simple-error-box">
+                    {{ form.non_field_errors }}
+                </div>
+            {% endif %}
+            {% if form.file.errors %}
+                <div class="simple-error-box">
+                    {{ form.file.errors }}
+                </div>
+            {% endif %}
             {{ form.as_p }}
             <div class="simple-actions">
                 <button type="submit" class="simple-btn simple-btn-primary">Upload Excel</button>
@@ -25,6 +36,6 @@
     </section>
 </main>
 {% include 'core/partials/page_loader.html' %}
-<script src="{% static 'core/js/page-loader.js' %}?v=20260223_2"></script>
+<script src="{% static 'core/js/page-loader.js' %}?v=20260302_1"></script>
 </body>
 </html>
