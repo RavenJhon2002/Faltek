@@ -1,6 +1,7 @@
 import pandas as pd
 from zipfile import BadZipFile
 import re
+from io import BytesIO
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from .models import Project
@@ -14,7 +15,7 @@ from django.http import JsonResponse
 import json
 from django.utils.safestring import mark_safe
 from .forms import BOQUploadForm, ProjectIssueLogForm
-from .models import Project, Activity, ActivityManpower, ActivityEquipment, ProjectIssueLog
+from .models import Project, Activity, ActivityManpower, ActivityEquipment, ProjectIssueLog, ProjectBOQUpload
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db.models import Max, Sum
 from datetime import timedelta
@@ -23,6 +24,7 @@ from django.urls import reverse
 from core.utils.scheduling import compute_activity_duration
 from django.core.management import call_command
 from django.utils.dateparse import parse_date
+from django.core.files.base import ContentFile
 
 
 def is_admin(user):
@@ -260,11 +262,14 @@ def upload_boq(request, project_id):
         form = BOQUploadForm(request.POST, request.FILES)
 
         if form.is_valid():
-            file = request.FILES["file"]
+            uploaded_file = request.FILES["file"]
+            uploaded_filename = uploaded_file.name
+            uploaded_bytes = uploaded_file.read()
+            file_stream = BytesIO(uploaded_bytes)
             base_start = project.start_date or timezone.localdate()
 
             try:
-                sheets = pd.read_excel(file, sheet_name=None, engine="openpyxl")
+                sheets = pd.read_excel(file_stream, sheet_name=None, engine="openpyxl")
             except (BadZipFile, ValueError, OSError):
                 form.add_error(
                     "file",
@@ -276,9 +281,9 @@ def upload_boq(request, project_id):
                 })
 
             try:
-                file.seek(0)
+                file_stream.seek(0)
                 raw_sheets = pd.read_excel(
-                    file,
+                    file_stream,
                     sheet_name=None,
                     engine="openpyxl",
                     header=None,
@@ -374,6 +379,13 @@ def upload_boq(request, project_id):
                     "form": form,
                     "project": project,
                 })
+
+            ProjectBOQUpload.objects.create(
+                project=project,
+                uploaded_by=request.user,
+                file=ContentFile(uploaded_bytes, name=uploaded_filename),
+                original_filename=uploaded_filename,
+            )
 
             for sheet_name, df in sheets.items():
                 print(f"\nREADING SHEET: {sheet_name}")

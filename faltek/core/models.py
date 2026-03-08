@@ -126,3 +126,26 @@ class ProjectIssueLog(models.Model):
 
     def __str__(self):
         return f"{self.project.name} - {self.report_date}"
+
+
+class ProjectBOQUpload(models.Model):
+    project = models.ForeignKey(
+        Project,
+        related_name="boq_uploads",
+        on_delete=models.CASCADE,
+    )
+    uploaded_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
+    file = models.FileField(upload_to="boq_uploads/")
+    original_filename = models.CharField(max_length=255, blank=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-uploaded_at"]
+
+    def __str__(self):
+        return f"{self.project.name} - {self.original_filename or self.file.name}"
