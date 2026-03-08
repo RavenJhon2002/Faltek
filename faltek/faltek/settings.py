@@ -48,6 +48,11 @@ INSTALLED_APPS = [
     'core',
 ]
 
+if importlib.util.find_spec("cloudinary_storage") is not None:
+    INSTALLED_APPS.insert(0, "cloudinary_storage")
+if importlib.util.find_spec("cloudinary") is not None:
+    INSTALLED_APPS.append("cloudinary")
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -155,6 +160,22 @@ STATICFILES_DIRS = [
 ]
 MEDIA_URL = "/media/"
 MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT", BASE_DIR / "media"))
+
+cloudinary_enabled = all(
+    os.environ.get(key)
+    for key in ("CLOUDINARY_CLOUD_NAME", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET")
+)
+if cloudinary_enabled and importlib.util.find_spec("cloudinary_storage") is not None:
+    CLOUDINARY_STORAGE = {
+        "CLOUD_NAME": os.environ["CLOUDINARY_CLOUD_NAME"],
+        "API_KEY": os.environ["CLOUDINARY_API_KEY"],
+        "API_SECRET": os.environ["CLOUDINARY_API_SECRET"],
+        "SECURE": True,
+    }
+    STORAGES = {
+        "default": {"BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage"},
+        "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+    }
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
