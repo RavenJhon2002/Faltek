@@ -403,24 +403,6 @@ def upload_boq(request, project_id):
                             "project": project,
                         })
 
-                    try:
-                        ProjectBOQUpload.objects.create(
-                            project=project,
-                            uploaded_by=request.user,
-                            file=ContentFile(uploaded_bytes, name=normalize_storage_filename(uploaded_filename)),
-                            original_filename=trim_text(uploaded_filename, 255),
-                        )
-                    except Exception as exc:
-                        logger.exception(
-                            "BOQ file archive save failed for project_id=%s: %s",
-                            project.id,
-                            exc,
-                        )
-                        messages.warning(
-                            request,
-                            "BOQ processed, but the original Excel file could not be archived in cloud storage."
-                        )
-
                     for sheet_name, df in sheets.items():
                         print(f"\nREADING SHEET: {sheet_name}")
 
@@ -665,6 +647,24 @@ def upload_boq(request, project_id):
                     "form": form,
                     "project": project,
                 })
+
+            try:
+                ProjectBOQUpload.objects.create(
+                    project=project,
+                    uploaded_by=request.user,
+                    file=ContentFile(uploaded_bytes, name=normalize_storage_filename(uploaded_filename)),
+                    original_filename=trim_text(uploaded_filename, 255),
+                )
+            except Exception as exc:
+                logger.exception(
+                    "BOQ file archive save failed for project_id=%s: %s",
+                    project.id,
+                    exc,
+                )
+                messages.warning(
+                    request,
+                    "BOQ processed, but the original Excel file could not be archived in cloud storage."
+                )
 
             try:
                 call_command("seed_manpower", project_id=project.id)
