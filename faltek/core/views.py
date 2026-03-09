@@ -1,6 +1,8 @@
 import pandas as pd
 from zipfile import BadZipFile
 import re
+import os
+import logging
 from io import BytesIO
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
@@ -18,14 +20,17 @@ from .forms import BOQUploadForm, ProjectIssueLogForm
 from .models import Project, Activity, ActivityManpower, ActivityEquipment, ProjectIssueLog, ProjectBOQUpload
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db.models import Max, Sum
+from django.db import DataError, transaction
 from datetime import timedelta
 from django.utils import timezone
 from django.urls import reverse
 from core.utils.scheduling import compute_activity_duration
 from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.utils.dateparse import parse_date
 from django.core.files.base import ContentFile
 
+logger = logging.getLogger(__name__)
 
 def is_admin(user):
     return user.groups.filter(name='Admin').exists()
@@ -268,6 +273,20 @@ def upload_boq(request, project_id):
             file_stream = BytesIO(uploaded_bytes)
             base_start = project.start_date or timezone.localdate()
 
+            def normalize_storage_filename(name, max_length=50):
+                basename = os.path.basename(name or "upload.xlsx")
+                stem, ext = os.path.splitext(basename)
+                ext = (ext or ".xlsx")[:10]
+                safe_stem = re.sub(r"[^A-Za-z0-9._-]+", "_", stem).strip("._") or "upload"
+                safe_stem = safe_stem[: max(1, max_length - len(ext))]
+                return f"{safe_stem}{ext}"
+
+            def trim_text(value, max_length):
+                value = (value or "").strip()
+                if len(value) <= max_length:
+                    return value
+                return (value[: max_length - 3].rstrip() + "...") if max_length > 3 else value[:max_length]
+
             try:
                 sheets = pd.read_excel(file_stream, sheet_name=None, engine="openpyxl")
             except (BadZipFile, ValueError, OSError):
@@ -362,253 +381,272 @@ def upload_boq(request, project_id):
                             return int(match.group(1))
                 return None
 
-            Activity.objects.filter(project=project).delete()
-            created_starts = []
-            created_ends = []
-            current_cursor = base_start
-            site_group_created = False
-            site_works_rows_found = 0
-            site_works_parts_found = set()
-            project_duration_days = extract_project_duration_days(raw_sheets)
-            if not project_duration_days or project_duration_days <= 0:
-                form.add_error(
-                    "file",
-                    "Could not find a valid project duration in Excel. Expected text like 'DURATION ... (150) Calendar Days'."
-                )
-                return render(request, "core/upload_boq.html", {
-                    "form": form,
-                    "project": project,
-                })
-
-            ProjectBOQUpload.objects.create(
-                project=project,
-                uploaded_by=request.user,
-                file=ContentFile(uploaded_bytes, name=uploaded_filename),
-                original_filename=uploaded_filename,
-            )
-
-            for sheet_name, df in sheets.items():
-                print(f"\nREADING SHEET: {sheet_name}")
-
-                if df.empty:
-                    continue
-                df.columns = (
-                    df.columns.astype(str)
-                    .str.lower()
-                    .str.strip()
-                    .str.replace(r"[^0-9a-z]+", "_", regex=True)
-                    .str.strip("_")
-                )
-
-                print("COLUMNS:", list(df.columns))
-
-                desc_col = choose_column(
-                    df.columns,
-                    [
-                    "bill_of_quantities",
-                    "work_description_and_scope_of_works",
-                    "work_description_and",
-                    "description",
-                    "activity",
-                    "item_description",
-                    ],
-                    ["description", "scope_of_work", "activity", "item"],
-                )
-
-                if not desc_col:
-                    print(" No usable description column in", sheet_name)
-                    continue
-
-                qty_col = choose_column(
-                    df.columns,
-                    ["qty", "quantity", "unnamed_2"],
-                    ["qty", "quantity", "volume"],
-                )
-                unit_col = choose_column(
-                    df.columns,
-                    ["unit", "uom", "unnamed_3"],
-                    ["unit", "uom"],
-                )
-                duration_col = choose_column(
-                    df.columns,
-                    ["duration", "duration_days", "no_of_days"],
-                    ["duration", "days"],
-                )
-
-                fallback_qty_cols = [
-                    col for col in ["unnamed_5", "unnamed_4", "unnamed_6", "unnamed_2"]
-                    if col in df.columns and col != qty_col
-                ]
-                fallback_unit_cols = [
-                    col for col in ["unnamed_6", "unnamed_7", "unnamed_3", "unnamed_4"]
-                    if col in df.columns and col != unit_col
-                ]
-
-                in_site_works = False
-
-                for _, row in df.iterrows():
-                    description = row.get(desc_col)
-                    qty = row.get(qty_col) if qty_col else None
-                    unit = row.get(unit_col) if unit_col else ""
-                    raw_duration = row.get(duration_col) if duration_col else None
-
-                    if pd.isna(description):
-                        continue
-
-                    description = str(description).strip()
-
-                    if not description:
-                        continue
-
-                    if any(word in description.lower() for word in [
-                        "include", "including", "must be", "performed",
-                        "installation of", "all necessary"
-                    ]):
-                        continue
-
-                    if any(word in description.lower() for word in [
-                        "direct cost", "labor cost", "materials cost"
-                    ]):
-                        continue
-
-                    normalized_header = " ".join(description.lower().split())
-                    if normalized_header == "site works":
-                        in_site_works = True
-                        continue
-
-                    section_end_markers = {
-                        "general requirements",
-                        "civil/ structural works",
-                        "civil/structural works",
-                        "civil works / structural works",
-                        "civil works/structural works",
-                        "scope of works",
-                        "architectural works",
-                        "sanitary/plumbing works",
-                        "electrical works",
-                        "utility and ancillary works",
-                        "mcb",
-                        "mdp",
-                    }
-                    if in_site_works and normalized_header in section_end_markers:
-                        in_site_works = False
-                        continue
-
-                    qty_value = parse_numeric(qty)
-                    if qty_value is None or qty_value <= 0:
-                        for alt_col in fallback_qty_cols:
-                            alt_qty_value = parse_numeric(row.get(alt_col))
-                            if alt_qty_value is not None and alt_qty_value > 0:
-                                qty_value = alt_qty_value
-                                break
-
-                    duration_value = parse_numeric(raw_duration)
-                    if duration_value is not None and duration_value > 0:
-                        duration_days = max(1, int(round(duration_value)))
-                    else:
-                        duration_days = None
-
-                    unit_value = str(unit).strip() if not pd.isna(unit) else ""
-                    if not unit_value or unit_value.lower() == "p":
-                        for alt_col in fallback_unit_cols:
-                            alt_unit_raw = row.get(alt_col)
-                            if pd.isna(alt_unit_raw):
-                                continue
-                            alt_unit_value = str(alt_unit_raw).strip()
-                            if not alt_unit_value:
-                                continue
-                            if alt_unit_value.lower() in {"p", "subtotal", "materials cost", "labor cost", "direct cost"}:
-                                continue
-                            unit_value = alt_unit_value
-                            break
-
-                    upper_text = description.upper() == description and any(c.isalpha() for c in description)
-                    is_group_row = (
-                        qty_value is None
-                        and not unit_value
-                        and len(description.split()) <= 8
-                        and upper_text
-                    )
-
-                    if is_group_row:
-                        # Skip heading rows; keep current section flag unless explicit marker matched above.
-                        continue
-
-                    if not in_site_works:
-                        continue
-
-                    if qty_value is None or qty_value <= 0:
-                        continue
-
-                    site_works_rows_found += 1
-                    order_index = get_siteworks_order_index(description)
-                    if order_index is not None:
-                        site_works_parts_found.add(order_index)
-
-                    start_date = current_cursor
-                    if duration_days:
-                        end_date = start_date + timedelta(days=duration_days)
-                    else:
-                        end_date = start_date + timedelta(days=1)
-                    if end_date < start_date:
-                        end_date = start_date
-
-                    if not site_group_created:
-                        Activity.objects.create(
-                            project=project,
-                            name="SITE WORKS",
-                            is_group=True,
-                            status="Pending",
-                            start_date=start_date,
-                            end_date=start_date,
+            try:
+                with transaction.atomic():
+                    Activity.objects.filter(project=project).delete()
+                    created_starts = []
+                    current_cursor = base_start
+                    site_group_created = False
+                    site_works_rows_found = 0
+                    site_works_parts_found = set()
+                    project_duration_days = extract_project_duration_days(raw_sheets)
+                    if not project_duration_days or project_duration_days <= 0:
+                        form.add_error(
+                            "file",
+                            "Could not find a valid project duration in Excel. Expected text like 'DURATION ... (150) Calendar Days'."
                         )
-                        site_group_created = True
+                        return render(request, "core/upload_boq.html", {
+                            "form": form,
+                            "project": project,
+                        })
 
-                    activity = Activity.objects.create(
+                    ProjectBOQUpload.objects.create(
                         project=project,
-                        name=description,
-                        quantity=qty_value,
-                        unit=unit_value,
-                        is_group=False,
-                        status="Pending",
-                        start_date=start_date,
-                        end_date=end_date,
+                        uploaded_by=request.user,
+                        file=ContentFile(uploaded_bytes, name=normalize_storage_filename(uploaded_filename)),
+                        original_filename=trim_text(uploaded_filename, 255),
                     )
 
-                    created_starts.append(start_date)
-                    created_ends.append(end_date)
-                    current_cursor = end_date
+                    for sheet_name, df in sheets.items():
+                        print(f"\nREADING SHEET: {sheet_name}")
 
-                    print(
-                        " ROW CREATED:",
-                        "ACTIVITY",
-                        description,
-                        activity.start_date,
-                        activity.end_date,
-                    )
+                        if df.empty:
+                            continue
+                        df.columns = (
+                            df.columns.astype(str)
+                            .str.lower()
+                            .str.strip()
+                            .str.replace(r"[^0-9a-z]+", "_", regex=True)
+                            .str.strip("_")
+                        )
 
-            if site_works_rows_found <= 1 or len(site_works_parts_found) <= 1:
-                Activity.objects.filter(project=project).delete()
+                        print("COLUMNS:", list(df.columns))
+
+                        desc_col = choose_column(
+                            df.columns,
+                            [
+                            "bill_of_quantities",
+                            "work_description_and_scope_of_works",
+                            "work_description_and",
+                            "description",
+                            "activity",
+                            "item_description",
+                            ],
+                            ["description", "scope_of_work", "activity", "item"],
+                        )
+
+                        if not desc_col:
+                            print(" No usable description column in", sheet_name)
+                            continue
+
+                        qty_col = choose_column(
+                            df.columns,
+                            ["qty", "quantity", "unnamed_2"],
+                            ["qty", "quantity", "volume"],
+                        )
+                        unit_col = choose_column(
+                            df.columns,
+                            ["unit", "uom", "unnamed_3"],
+                            ["unit", "uom"],
+                        )
+                        duration_col = choose_column(
+                            df.columns,
+                            ["duration", "duration_days", "no_of_days"],
+                            ["duration", "days"],
+                        )
+
+                        fallback_qty_cols = [
+                            col for col in ["unnamed_5", "unnamed_4", "unnamed_6", "unnamed_2"]
+                            if col in df.columns and col != qty_col
+                        ]
+                        fallback_unit_cols = [
+                            col for col in ["unnamed_6", "unnamed_7", "unnamed_3", "unnamed_4"]
+                            if col in df.columns and col != unit_col
+                        ]
+
+                        in_site_works = False
+
+                        for _, row in df.iterrows():
+                            description = row.get(desc_col)
+                            qty = row.get(qty_col) if qty_col else None
+                            unit = row.get(unit_col) if unit_col else ""
+                            raw_duration = row.get(duration_col) if duration_col else None
+
+                            if pd.isna(description):
+                                continue
+
+                            description = str(description).strip()
+
+                            if not description:
+                                continue
+
+                            if any(word in description.lower() for word in [
+                                "include", "including", "must be", "performed",
+                                "installation of", "all necessary"
+                            ]):
+                                continue
+
+                            if any(word in description.lower() for word in [
+                                "direct cost", "labor cost", "materials cost"
+                            ]):
+                                continue
+
+                            normalized_header = " ".join(description.lower().split())
+                            if normalized_header == "site works":
+                                in_site_works = True
+                                continue
+
+                            section_end_markers = {
+                                "general requirements",
+                                "civil/ structural works",
+                                "civil/structural works",
+                                "civil works / structural works",
+                                "civil works/structural works",
+                                "scope of works",
+                                "architectural works",
+                                "sanitary/plumbing works",
+                                "electrical works",
+                                "utility and ancillary works",
+                                "mcb",
+                                "mdp",
+                            }
+                            if in_site_works and normalized_header in section_end_markers:
+                                in_site_works = False
+                                continue
+
+                            qty_value = parse_numeric(qty)
+                            if qty_value is None or qty_value <= 0:
+                                for alt_col in fallback_qty_cols:
+                                    alt_qty_value = parse_numeric(row.get(alt_col))
+                                    if alt_qty_value is not None and alt_qty_value > 0:
+                                        qty_value = alt_qty_value
+                                        break
+
+                            duration_value = parse_numeric(raw_duration)
+                            if duration_value is not None and duration_value > 0:
+                                duration_days = max(1, int(round(duration_value)))
+                            else:
+                                duration_days = None
+
+                            unit_value = str(unit).strip() if not pd.isna(unit) else ""
+                            if not unit_value or unit_value.lower() == "p":
+                                for alt_col in fallback_unit_cols:
+                                    alt_unit_raw = row.get(alt_col)
+                                    if pd.isna(alt_unit_raw):
+                                        continue
+                                    alt_unit_value = str(alt_unit_raw).strip()
+                                    if not alt_unit_value:
+                                        continue
+                                    if alt_unit_value.lower() in {"p", "subtotal", "materials cost", "labor cost", "direct cost"}:
+                                        continue
+                                    unit_value = alt_unit_value
+                                    break
+
+                            upper_text = description.upper() == description and any(c.isalpha() for c in description)
+                            is_group_row = (
+                                qty_value is None
+                                and not unit_value
+                                and len(description.split()) <= 8
+                                and upper_text
+                            )
+
+                            if is_group_row:
+                                continue
+
+                            if not in_site_works:
+                                continue
+
+                            if qty_value is None or qty_value <= 0:
+                                continue
+
+                            site_works_rows_found += 1
+                            order_index = get_siteworks_order_index(description)
+                            if order_index is not None:
+                                site_works_parts_found.add(order_index)
+
+                            start_date = current_cursor
+                            if duration_days:
+                                end_date = start_date + timedelta(days=duration_days)
+                            else:
+                                end_date = start_date + timedelta(days=1)
+                            if end_date < start_date:
+                                end_date = start_date
+
+                            if not site_group_created:
+                                Activity.objects.create(
+                                    project=project,
+                                    name="SITE WORKS",
+                                    is_group=True,
+                                    status="Pending",
+                                    start_date=start_date,
+                                    end_date=start_date,
+                                )
+                                site_group_created = True
+
+                            activity_name = trim_text(description, 255)
+                            activity = Activity.objects.create(
+                                project=project,
+                                name=activity_name,
+                                quantity=qty_value,
+                                unit=trim_text(unit_value, 50),
+                                is_group=False,
+                                status="Pending",
+                                start_date=start_date,
+                                end_date=end_date,
+                            )
+
+                            created_starts.append(start_date)
+                            current_cursor = end_date
+
+                            print(
+                                " ROW CREATED:",
+                                "ACTIVITY",
+                                activity_name,
+                                activity.start_date,
+                                activity.end_date,
+                            )
+
+                    if site_works_rows_found <= 1 or len(site_works_parts_found) <= 1:
+                        Activity.objects.filter(project=project).delete()
+                        form.add_error(
+                            "file",
+                            "Wrong Excel format: could not find enough SITE WORKS parts in the BOQ file."
+                        )
+                        return render(request, "core/upload_boq.html", {
+                            "form": form,
+                            "project": project,
+                        })
+
+                    if created_starts:
+                        project.start_date = min(created_starts)
+                    else:
+                        project.start_date = project.start_date or base_start
+
+                    project.end_date = project.start_date + timedelta(days=project_duration_days)
+                    project.save(update_fields=["start_date", "end_date"])
+
+                    call_command("seed_manpower", project_id=project.id)
+                    call_command("seed_equipment", project_id=project.id)
+            except (DataError, CommandError) as exc:
+                logger.exception("BOQ upload failed for project_id=%s: %s", project.id, exc)
                 form.add_error(
-                    "file",
-                    "Wrong Excel format: could not find enough SITE WORKS parts in the BOQ file."
+                    None,
+                    "Could not process this BOQ file due to invalid or too-long values. Please review the file and try again."
                 )
                 return render(request, "core/upload_boq.html", {
                     "form": form,
                     "project": project,
                 })
-
-            if created_starts:
-                project.start_date = min(created_starts)
-            else:
-                project.start_date = project.start_date or base_start
-
-            project.end_date = project.start_date + timedelta(days=project_duration_days)
-            project.save(update_fields=["start_date", "end_date"])
-
-            # Always regenerate mappings from the latest BOQ upload.
-            call_command("seed_manpower", project_id=project.id)
-            call_command("seed_equipment", project_id=project.id)
+            except Exception as exc:
+                logger.exception("Unexpected BOQ upload error for project_id=%s: %s", project.id, exc)
+                form.add_error(
+                    None,
+                    "Unexpected error while processing BOQ upload. Please try again."
+                )
+                return render(request, "core/upload_boq.html", {
+                    "form": form,
+                    "project": project,
+                })
 
             return redirect("project_detail", project.id)
 
