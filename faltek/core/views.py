@@ -290,7 +290,8 @@ def upload_boq(request, project_id):
 
             try:
                 sheets = pd.read_excel(file_stream, sheet_name=None, engine="openpyxl")
-            except (BadZipFile, ValueError, OSError):
+            except Exception as exc:
+                logger.exception("Excel read failed for project_id=%s: %s", project.id, exc)
                 form.add_error(
                     "file",
                     "Invalid Excel file. Please upload a real .xlsx workbook."
@@ -308,7 +309,8 @@ def upload_boq(request, project_id):
                     engine="openpyxl",
                     header=None,
                 )
-            except (BadZipFile, ValueError, OSError):
+            except Exception as exc:
+                logger.exception("Excel raw read failed for project_id=%s: %s", project.id, exc)
                 raw_sheets = {}
 
             def parse_numeric(value):
@@ -648,10 +650,16 @@ def upload_boq(request, project_id):
                     "project": project,
                 })
             except Exception as exc:
-                logger.exception("Unexpected BOQ upload error for project_id=%s: %s", project.id, exc)
+                error_ref = timezone.now().strftime("%Y%m%d%H%M%S%f")
+                logger.exception(
+                    "Unexpected BOQ upload error ref=%s for project_id=%s: %s",
+                    error_ref,
+                    project.id,
+                    exc,
+                )
                 form.add_error(
                     None,
-                    "Unexpected error while processing BOQ upload. Please try again."
+                    f"Unexpected error while processing BOQ upload. Ref: {error_ref} ({exc.__class__.__name__})"
                 )
                 return render(request, "core/upload_boq.html", {
                     "form": form,
