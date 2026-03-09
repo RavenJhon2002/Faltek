@@ -5,6 +5,7 @@ import os
 import logging
 from io import BytesIO
 from django.contrib.auth.decorators import login_required
+from django.contrib import messages
 from django.shortcuts import render
 from .models import Project
 from django.shortcuts import render, redirect
@@ -625,8 +626,6 @@ def upload_boq(request, project_id):
                     project.end_date = project.start_date + timedelta(days=project_duration_days)
                     project.save(update_fields=["start_date", "end_date"])
 
-                    call_command("seed_manpower", project_id=project.id)
-                    call_command("seed_equipment", project_id=project.id)
             except (DataError, CommandError) as exc:
                 logger.exception("BOQ upload failed for project_id=%s: %s", project.id, exc)
                 form.add_error(
@@ -647,6 +646,16 @@ def upload_boq(request, project_id):
                     "form": form,
                     "project": project,
                 })
+
+            try:
+                call_command("seed_manpower", project_id=project.id)
+                call_command("seed_equipment", project_id=project.id)
+            except Exception as exc:
+                logger.exception("BOQ upload succeeded but seeding failed for project_id=%s: %s", project.id, exc)
+                messages.warning(
+                    request,
+                    "BOQ uploaded, but manpower/equipment defaults were not auto-generated."
+                )
 
             return redirect("project_detail", project.id)
 
