@@ -2,6 +2,32 @@ document.addEventListener("DOMContentLoaded", function () {
     const reportDateFilter = document.getElementById("equipmentReportDateFilter");
     const reportTable = document.getElementById("equipmentReportTable");
     const reportEmpty = document.getElementById("equipmentReportEmpty");
+    const entryDateInput = document.getElementById("equipmentEntryDate");
+    const equipmentList = document.getElementById("equipmentList");
+    const equipmentEmpty = document.getElementById("equipmentFilterEmpty");
+
+    function applyEntryDateFilter() {
+        if (!entryDateInput || !equipmentList) {
+            return;
+        }
+
+        const selectedDate = entryDateInput.value;
+        const cards = Array.from(equipmentList.querySelectorAll(".equipment-day-card"));
+        let visibleCards = 0;
+
+        cards.forEach(function (card) {
+            const cardStartDate = card.getAttribute("data-start-date") || "";
+            const show = !selectedDate || cardStartDate === selectedDate;
+            card.style.display = show ? "" : "none";
+            if (show) {
+                visibleCards += 1;
+            }
+        });
+
+        if (equipmentEmpty) {
+            equipmentEmpty.classList.toggle("is-hidden", visibleCards > 0);
+        }
+    }
 
     function applyReportDateFilter() {
         if (!reportDateFilter || !reportTable) {
@@ -29,5 +55,10 @@ document.addEventListener("DOMContentLoaded", function () {
     if (reportDateFilter && reportTable) {
         reportDateFilter.addEventListener("change", applyReportDateFilter);
         applyReportDateFilter();
+    }
+
+    if (entryDateInput && equipmentList) {
+        entryDateInput.addEventListener("change", applyEntryDateFilter);
+        applyEntryDateFilter();
     }
 });

@@ -400,7 +400,7 @@
                 </div>
                 <div class="manpower-list" id="manpowerList">
                     {% for act in manpower_activities %}
-                        <article class="manpower-card">
+                        <article class="manpower-card" data-start-date="{% if act.start_date %}{{ act.start_date|date:'Y-m-d' }}{% endif %}">
                             <h3>{{ act.name }}</h3>
                             <table class="manpower-table">
                                 <thead>
@@ -476,7 +476,7 @@
 
                 <div class="equipment-list" id="equipmentList">
                     {% for act in equipment_activities %}
-                    <article class="equipment-day-card">
+                    <article class="equipment-day-card" data-start-date="{% if act.start_date %}{{ act.start_date|date:'Y-m-d' }}{% endif %}">
                         <p class="equipment-date">
                             {% if act.start_date %}
                                 {{ act.start_date|date:"F d, Y" }}
@@ -531,6 +531,9 @@
                         <p>No equipment records found yet. Run the equipment seeder first.</p>
                     </div>
                     {% endfor %}
+                </div>
+                <div id="equipmentFilterEmpty" class="empty-state is-hidden">
+                    <p>No equipment rows match the selected date.</p>
                 </div>
 
                 <div class="manpower-actions">

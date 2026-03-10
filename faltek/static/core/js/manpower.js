@@ -3,6 +3,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const roleSelect = document.getElementById("manpowerRoleFilter");
     const list = document.getElementById("manpowerList");
     const empty = document.getElementById("manpowerFilterEmpty");
+    const entryDateInput = document.getElementById("manpowerEntryDate");
     const reportDateFilter = document.getElementById("manpowerReportDateFilter");
     const reportTable = document.getElementById("manpowerReportTable");
     const reportEmpty = document.getElementById("manpowerReportEmpty");
@@ -16,11 +17,13 @@ document.addEventListener("DOMContentLoaded", function () {
     function applyFilter() {
         const searchValue = searchInput.value.trim().toLowerCase();
         const roleValue = roleSelect.value;
+        const selectedDate = entryDateInput ? entryDateInput.value : "";
         let visibleCards = 0;
 
         cards.forEach(function (card) {
             const title = card.querySelector("h3");
             const titleText = (title ? title.textContent : "").toLowerCase();
+            const cardStartDate = card.getAttribute("data-start-date") || "";
             const rows = Array.from(card.querySelectorAll("tbody tr"));
 
             let visibleRows = 0;
@@ -37,7 +40,8 @@ document.addEventListener("DOMContentLoaded", function () {
             });
 
             const titleMatches = !searchValue || titleText.includes(searchValue);
-            const showCard = titleMatches && visibleRows > 0;
+            const dateMatches = !selectedDate || cardStartDate === selectedDate;
+            const showCard = titleMatches && dateMatches && visibleRows > 0;
 
             card.style.display = showCard ? "" : "none";
             if (showCard) {
@@ -52,6 +56,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
     searchInput.addEventListener("input", applyFilter);
     roleSelect.addEventListener("change", applyFilter);
+    if (entryDateInput) {
+        entryDateInput.addEventListener("change", applyFilter);
+    }
     applyFilter();
 
     function applyReportDateFilter() {
