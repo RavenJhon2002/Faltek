@@ -40,7 +40,7 @@ document.addEventListener("DOMContentLoaded", function () {
             });
 
             const titleMatches = !searchValue || titleText.includes(searchValue);
-            const dateMatches = !selectedDate || cardStartDate === selectedDate;
+            const dateMatches = !selectedDate || (cardStartDate && cardStartDate <= selectedDate);
             const showCard = titleMatches && dateMatches && visibleRows > 0;
 
             card.style.display = showCard ? "" : "none";
