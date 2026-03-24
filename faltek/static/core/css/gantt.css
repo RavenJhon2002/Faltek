@@ -903,6 +903,11 @@ p {
     color: #a13030;
 }
 
+.delay-pill-no_progress {
+    background: rgba(59, 115, 209, 0.18);
+    color: #2b5fb6;
+}
+
 
 .manpower-actions {
     display: flex;

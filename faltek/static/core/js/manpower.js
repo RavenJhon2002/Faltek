@@ -24,6 +24,7 @@ document.addEventListener("DOMContentLoaded", function () {
             const title = card.querySelector("h3");
             const titleText = (title ? title.textContent : "").toLowerCase();
             const cardStartDate = card.getAttribute("data-start-date") || "";
+            const cardEndDate = card.getAttribute("data-end-date") || "";
             const rows = Array.from(card.querySelectorAll("tbody tr"));
 
             let visibleRows = 0;
@@ -40,7 +41,11 @@ document.addEventListener("DOMContentLoaded", function () {
             });
 
             const titleMatches = !searchValue || titleText.includes(searchValue);
-            const dateMatches = !selectedDate || (cardStartDate && cardStartDate <= selectedDate);
+            const dateMatches = !selectedDate || (
+                cardStartDate &&
+                cardStartDate <= selectedDate &&
+                (!cardEndDate || selectedDate <= cardEndDate)
+            );
             const showCard = titleMatches && dateMatches && visibleRows > 0;
 
             card.style.display = showCard ? "" : "none";

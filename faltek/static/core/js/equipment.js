@@ -17,7 +17,12 @@ document.addEventListener("DOMContentLoaded", function () {
 
         cards.forEach(function (card) {
             const cardStartDate = card.getAttribute("data-start-date") || "";
-            const show = !selectedDate || (cardStartDate && cardStartDate <= selectedDate);
+            const cardEndDate = card.getAttribute("data-end-date") || "";
+            const show = !selectedDate || (
+                cardStartDate &&
+                cardStartDate <= selectedDate &&
+                (!cardEndDate || selectedDate <= cardEndDate)
+            );
             card.style.display = show ? "" : "none";
             if (show) {
                 visibleCards += 1;

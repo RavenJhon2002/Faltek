@@ -287,7 +287,12 @@ document.addEventListener("DOMContentLoaded", function () {
         const minStartDate = new Date(Math.min.apply(null, realTasks.map(function (task) {
             return parseDate(task.start);
         })));
-        const minDate = minStartDate;
+        const baseStartRaw = container.dataset.startDate || "";
+        const baseStartDate = parseDate(baseStartRaw);
+        let minDate = minStartDate;
+        if (!Number.isNaN(baseStartDate.getTime()) && baseStartDate < minStartDate) {
+            minDate = baseStartDate;
+        }
         const maxDate = new Date(Math.max.apply(null, allDates));
         const timelineDates = getDateRange(minDate, maxDate);
 
@@ -438,8 +443,13 @@ document.addEventListener("DOMContentLoaded", function () {
         wrap.appendChild(table);
         container.appendChild(wrap);
 
-        // Keep first scheduled bars visible even when timeline extends due to late-delay dates.
+        // Keep first scheduled bars visible only when the timeline starts at the first task.
         const startOffsetDays = Math.max(0, diffDays(minDate, minStartDate));
-        wrap.scrollLeft = Math.max(0, (startOffsetDays - 1) * colWidths.day);
+        const anchorIsEarlier = !Number.isNaN(baseStartDate.getTime()) && baseStartDate < minStartDate;
+        if (anchorIsEarlier) {
+            wrap.scrollLeft = 0;
+        } else {
+            wrap.scrollLeft = Math.max(0, (startOffsetDays - 1) * colWidths.day);
+        }
     }
 });

@@ -120,6 +120,32 @@ def get_progress_delay_status(
     return "significant_delay", "DELAYED"
 
 
+def get_resource_delay_status(
+    manpower_required=0,
+    manpower_actual=0,
+    equipment_required=0,
+    equipment_actual=0,
+):
+    manpower_shortage = get_resource_shortage_level(manpower_required, manpower_actual)
+    equipment_shortage = get_resource_shortage_level(equipment_required, equipment_actual)
+
+    shortage_rank = {
+        "met": 0,
+        "slight": 1,
+        "significant": 2,
+    }
+    resource_level = max(
+        shortage_rank.get(manpower_shortage, 0),
+        shortage_rank.get(equipment_shortage, 0),
+    )
+
+    if resource_level == 0:
+        return "on_schedule", "ON TIME"
+    if resource_level == 1:
+        return "minor_delay", "SLIGHTLY DELAYED"
+    return "significant_delay", "DELAYED"
+
+
 def get_progress_only_status(expected_progress, actual_progress):
     lag = expected_progress - actual_progress
     if lag <= 0:
@@ -816,6 +842,7 @@ def build_project_detail_context(
     timeline_start = None
     timeline_end = None
     activity_progress_rows = []
+    activity_date_map = {}
 
     gantt_activities = []
     siteworks_group = None
@@ -901,7 +928,7 @@ def build_project_detail_context(
 
         # Keep Act order and always follow the last visible activity start (+1 day),
         # so missing BOQ rows do not create timeline gaps.
-        base_start_date = act.start_date or project.start_date or timezone.localdate()
+        base_start_date = project.start_date or act.start_date or timezone.localdate()
         if previous_start_date:
             start_date = previous_start_date + timedelta(days=1)
         else:
@@ -939,25 +966,26 @@ def build_project_detail_context(
                 end_date,
                 timezone.localdate(),
             )
-            progress_delay_key, progress_delay_label = get_progress_delay_status(
-                planned_task_progress,
-                actual_task_progress,
+            resource_delay_key, resource_delay_label = get_resource_delay_status(
                 manpower_required=required_workers,
                 manpower_actual=actual_workers,
                 equipment_required=required_equipment,
                 equipment_actual=actual_equipment,
             )
 
-            has_progress_update = bool(latest_update or act.progress_updated_at)
+            has_progress_update = bool(
+                (latest_update or act.progress_updated_at)
+                and (actual_workers > 0 or actual_equipment > 0)
+            )
             if has_progress_update:
-                row_delay_status = progress_delay_key
+                row_delay_status = resource_delay_key
             else:
                 row_delay_status = "no_progress"
-                progress_delay_key = "no_progress"
-                progress_delay_label = ""
+                resource_delay_key = "no_progress"
+                resource_delay_label = "NO UPDATE"
 
             delay_date = ""
-            if progress_delay_key in {"minor_delay", "significant_delay"} and latest_update:
+            if resource_delay_key in {"minor_delay", "significant_delay"} and latest_update:
                 delay_date = latest_update.date().isoformat()
             row_delay_date = delay_date
 
@@ -966,8 +994,8 @@ def build_project_detail_context(
                 "name": display_name,
                 "planned_progress": planned_task_progress,
                 "actual_progress": actual_task_progress,
-                "delay_status_key": progress_delay_key,
-                "delay_status_label": progress_delay_label,
+                "delay_status_key": resource_delay_key,
+                "delay_status_label": resource_delay_label,
                 "delay_date": delay_date,
                 "progress_updated_at": latest_update,
                 "required_manpower": required_workers,
@@ -978,6 +1006,7 @@ def build_project_detail_context(
 
         # BUILD GANTT DATA
         if start_date and end_date:
+            activity_date_map[act.id] = (start_date, end_date)
             gantt_data.append({
                 "name": display_name,
                 "start": start_date.isoformat(),
@@ -1012,11 +1041,15 @@ def build_project_detail_context(
 
     progress_status = "ON TIME"
 
-    manpower_activities = (
+    manpower_activities = list(
         activities
         .filter(is_group=False)
         .prefetch_related("manpower__role")
     )
+    for act in manpower_activities:
+        computed_dates = activity_date_map.get(act.id)
+        act.computed_start_date = computed_dates[0] if computed_dates else act.start_date
+        act.computed_end_date = computed_dates[1] if computed_dates else act.end_date
 
     manpower_rows = ActivityManpower.objects.filter(activity__project=project).select_related("role", "activity")
 
@@ -1086,11 +1119,15 @@ def build_project_detail_context(
     )
     manpower_report_dates = sorted(date_values, reverse=True)
     issue_logs = ProjectIssueLog.objects.filter(project=project)
-    equipment_activities = (
+    equipment_activities = list(
         activities
         .filter(is_group=False)
         .prefetch_related("equipment__equipment")
     )
+    for act in equipment_activities:
+        computed_dates = activity_date_map.get(act.id)
+        act.computed_start_date = computed_dates[0] if computed_dates else act.start_date
+        act.computed_end_date = computed_dates[1] if computed_dates else act.end_date
 
     equipment_rows = ActivityEquipment.objects.filter(
         activity__project=project
@@ -1150,6 +1187,8 @@ def build_project_detail_context(
     )
 
     today_iso = timezone.localdate().isoformat()
+    gantt_start_date = project.start_date or timeline_start
+    gantt_start_date_iso = gantt_start_date.isoformat() if gantt_start_date else ""
 
     context = {
         "project": project,
@@ -1180,6 +1219,7 @@ def build_project_detail_context(
         "open_equipment_modal": open_equipment_modal,
         "equipment_open_view": equipment_open_view,
         "today_iso": today_iso,
+        "gantt_start_date_iso": gantt_start_date_iso,
         "viewer_mode": viewer_mode,
         "viewer_link": viewer_link,
     }
@@ -1230,24 +1270,21 @@ def project_detail(request, pk):
                     activity__project=project
                 ).only("actual", "actual_updated_at").first()
                 if (
-                    actual_value <= 0
+                    actual_value == 0
                     and existing_equipment
-                    and (existing_equipment.actual or 0) > 0
+                    and (existing_equipment.actual or 0) == 0
+                    and existing_equipment.actual_updated_at is None
                 ):
-                    # Keep previously achieved progress; do not regress to zero on later entries.
+                    # Treat untouched zero values as "no update yet".
                     continue
-
                 actual_value = max(0, actual_value)
-                if actual_value > 0:
-                    updated_at = timezone.now()
-                    if equipment_entry_date:
-                        updated_at = updated_at.replace(
-                            year=equipment_entry_date.year,
-                            month=equipment_entry_date.month,
-                            day=equipment_entry_date.day,
-                        )
-                else:
-                    updated_at = None
+                updated_at = timezone.now()
+                if equipment_entry_date:
+                    updated_at = updated_at.replace(
+                        year=equipment_entry_date.year,
+                        month=equipment_entry_date.month,
+                        day=equipment_entry_date.day,
+                    )
 
                 ActivityEquipment.objects.filter(
                     id=int(equipment_id),
@@ -1283,25 +1320,21 @@ def project_detail(request, pk):
                     activity__project=project
                 ).only("actual", "actual_updated_at").first()
                 if (
-                    actual_value <= 0
+                    actual_value == 0
                     and existing_manpower
-                    and (existing_manpower.actual or 0) > 0
+                    and (existing_manpower.actual or 0) == 0
+                    and existing_manpower.actual_updated_at is None
                 ):
-                    # Keep previously achieved progress; do not regress to zero on later entries.
+                    # Treat untouched zero values as "no update yet".
                     continue
-
                 actual_value = max(0, actual_value)
-
-                if actual_value > 0:
-                    updated_at = timezone.now()
-                    if manpower_entry_date:
-                        updated_at = updated_at.replace(
-                            year=manpower_entry_date.year,
-                            month=manpower_entry_date.month,
-                            day=manpower_entry_date.day,
-                        )
-                else:
-                    updated_at = None
+                updated_at = timezone.now()
+                if manpower_entry_date:
+                    updated_at = updated_at.replace(
+                        year=manpower_entry_date.year,
+                        month=manpower_entry_date.month,
+                        day=manpower_entry_date.day,
+                    )
 
                 ActivityManpower.objects.filter(
                     id=int(manpower_id),
