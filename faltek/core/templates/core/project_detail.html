@@ -28,9 +28,11 @@
         <p class="eyebrow">Project Workspace</p>
         <h1>{{ project.name }}</h1>
     </div>
+    {% if not viewer_mode %}
     <div class="header-actions">
         <a class="btn btn-ghost" href="{% url 'project_list' %}">Back to Projects</a>
     </div>
+    {% endif %}
 </header>
 
 <main class="page-grid single-column">
