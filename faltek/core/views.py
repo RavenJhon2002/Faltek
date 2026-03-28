@@ -1364,11 +1364,20 @@ def project_detail(request, pk):
 
 def project_viewer(request, pk, token):
     project = get_object_or_404(Project, pk=pk, share_token=token)
-    if request.method == "POST":
-        return redirect("project_viewer", pk=pk, token=token)
-
     issue_log_form = ProjectIssueLogForm()
     open_reports_modal = request.GET.get("modal") == "reports"
+    if request.method == "POST":
+        if request.POST.get("save_issue_log") == "1":
+            issue_log_form = ProjectIssueLogForm(request.POST, request.FILES)
+            if issue_log_form.is_valid():
+                issue_log = issue_log_form.save(commit=False)
+                issue_log.project = project
+                issue_log.save()
+                detail_url = reverse("project_viewer", kwargs={"pk": project.pk, "token": token})
+                return redirect(f"{detail_url}?modal=reports")
+            open_reports_modal = True
+        else:
+            return redirect("project_viewer", pk=pk, token=token)
     context = build_project_detail_context(
         project=project,
         issue_log_form=issue_log_form,
